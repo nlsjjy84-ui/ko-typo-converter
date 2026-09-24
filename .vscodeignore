@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode
+.vscode-test
+node_modules
+out
+dist
+*.vsix
+*.log
+test.js
+.eslintrc.json
+.prettierrc
+coverage
+*.test.js
+*.spec.js

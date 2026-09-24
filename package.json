@@ -1,0 +1,97 @@
+{
+  "name": "ko-typo-converter",
+  "displayName": "한영타자 변환기 (Ko-Typo Converter)",
+  "description": "영문 타이핑 실수(한글 오타)를 자동으로 감지하고 변환해주는 VS Code 확장",
+  "version": "0.0.1",
+  "publisher": "nlsjjy84-ui",
+  "author": {
+    "name": "주영",
+    "email": "nlsjjy84@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nlsjjy84-ui/ko-typo-converter"
+  },
+  "engines": {
+    "vscode": "^1.60.0",
+    "node": ">=14.0.0"
+  },
+  "categories": [
+    "Linters",
+    "Formatters",
+    "Other"
+  ],
+  "keywords": [
+    "한글",
+    "타자",
+    "오타",
+    "변환",
+    "korean",
+    "typo",
+    "converter"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ko-typo.convert",
+        "title": "한영 변환: 선택 영역 변환"
+      },
+      {
+        "command": "ko-typo.scanDocument",
+        "title": "한영 변환: 문서 전체 스캔"
+      }
+    ],
+    "configuration": {
+      "title": "한영 타자 변환기 설정",
+      "properties": {
+        "ko-typo.autoConvert": {
+          "type": "boolean",
+          "default": true,
+          "description": "자동 변환 활성화 여부 (신뢰도 90 이상만 자동)"
+        },
+        "ko-typo.confidenceThreshold": {
+          "type": "number",
+          "default": 70,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "제안 표시 최소 신뢰도 (0-100)"
+        },
+        "ko-typo.showDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "에디터에 진단 정보 표시"
+        },
+        "ko-typo.excludePatterns": {
+          "type": "array",
+          "default": [
+            "*.md",
+            "*.txt",
+            "package.json"
+          ],
+          "description": "변환 제외할 파일 패턴"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "ko-typo.convert",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node test.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {}
+}
