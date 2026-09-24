@@ -1,18 +1,28 @@
 const vscode = require('vscode');
-const { convertEngToKor, isConvertibleAlphabet } = require('./hangulAssembler');
+const { convertEngToKor, isConvertibleAlphabet, isFullyComposedHangul } = require('./hangulAssembler');
 // 버그 수정 (2026-09-24): 실제 파일명은 confidenceCalculator.js인데 './confidence'를
 // require하고 있어서 활성화 즉시 "Cannot find module" 에러로 확장이 죽고 있었다.
 const { calculateConfidence, confidenceLabel } = require('./confidenceCalculator');
+// 설계 변경 (2026-09-24): 아래 설명 참고 - 진짜 영어 단어를 걸러내는 블록리스트.
+const { isCommonEnglishWord } = require('./commonEnglishWords');
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('ko-typo-converter');
 
+// 설계 변경 (2026-09-24): 처음엔 "신뢰도 점수가 임계값을 넘으면 자동변환"하는 방식이었는데,
+// 이건 애초에 잘못된 접근이었다 (사용자 피드백으로 정정). 점수를 아무리 잘 조정해도
+// "이 단어가 진짜 영어인지 한글 오타인지"를 애매하게 판정할 뿐이고, 실제 2벌식 한글
+// 입력기가 하는 일은 그게 아니다 - "이 자모 조합이 문법적으로 완성된 한글 음절을
+// 이루는가"만 보고 그렇다면 바로 바꿔주는 것뿐이다. 실제로 영단어가 2벌식으로 조합됐을
+// 때 완전한 한글 음절로 깔끔하게 맞아떨어지는 경우는 거의 없다 (예: "test"는 자음만
+// 내리 4개라 완성된 음절이 하나도 안 나오고 홀로 남은 자모 "ㅅ"만 남는다). 그래서
+// 이제는 점수가 아니라 hangulAssembler.js의 isFullyComposedHangul() - "결과가 완전히
+// 조합된 한글 음절로만 이루어져 있는가" - 가 자동변환 여부를 가르는 진짜 기준이다.
+// confidenceCalculator의 점수는 이제 게이트가 아니라 Diagnostics에 표시되는 참고
+// 정보(심각도/레이블)로만 쓰인다.
 // 저장 시 Diagnostics로 보여줄 최소 신뢰도는 ko-typo.confidenceThreshold 설정에서 가져온다
-// (아래 getConfidenceThreshold() 참고, 기본값 70점 = 0.7).
-// 타이핑 중 "자동으로 바로 바꿔치기"할 최소 신뢰도 (오탐 방지를 위해 더 높게 잡음)
-// 버그 수정 (2026-09-24): README/설정 설명에는 "90점 이상 자동 변환"이라고 문서화되어
-// 있는데 실제 코드는 0.75(=75점)로 자동 변환을 해버리고 있어서 문서와 동작이 달랐다.
-// 문서 기준(90점)에 맞춰 0.9로 올린다.
-const AUTO_CONVERT_THRESHOLD = 0.9;
+// (아래 getConfidenceThreshold() 참고, 기본값 50점 = 0.5) - 다만 이것도 필수 조건이
+// 아니라, 이미 "완성된 한글 음절"이라는 1차 기준을 통과한 후보들 중에서 추가로
+// 걸러내고 싶을 때 쓰는 보조 설정이다.
 
 // 주석/문자열 영역을 찾는 정규식 (extension.js 전체에서 재사용)
 const ZONE_REGEX = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
@@ -95,9 +105,15 @@ function findCandidates(document) {
     while ((wordMatch = WORD_REGEX.exec(zoneText)) !== null) {
       const word = wordMatch[0];
       if (!isConvertibleAlphabet(word)) continue;
+      // 진짜 영단어일 가능성이 높으면 애초에 후보에서 제외 (오탐 방지 1차 안전장치)
+      if (isCommonEnglishWord(word)) continue;
 
       const converted = convertEngToKor(word);
+      // 핵심 판단 기준: 결과가 "완전히 조합된 한글 음절"인가 (점수가 아니라 문법 여부)
+      if (converted === word || !isFullyComposedHangul(converted)) continue;
+
       const confidence = calculateConfidence(word, converted, zoneType);
+      // 신뢰도는 이제 게이트가 아니라 보조 필터 (기본값 50점이라 대부분 통과함)
       if (confidence < getConfidenceThreshold()) continue;
 
       const absoluteStart = zoneStart + wordMatch.index;
@@ -233,10 +249,16 @@ function handleLiveTyping(event) {
   const zoneType = isInsideZone(fullText, wordStartOffset);
   if (!zoneType) return;
 
+  if (!isConvertibleAlphabet(word)) return;
+  // 진짜 영단어일 가능성이 높으면 자동변환하지 않는다 (오탐 방지 1차 안전장치)
+  if (isCommonEnglishWord(word)) return;
+
   const converted = convertEngToKor(word);
-  const confidence = calculateConfidence(word, converted, zoneType);
-  if (confidence < AUTO_CONVERT_THRESHOLD) return;
   if (converted === word) return; // 변환해도 똑같으면 스킵
+  // 핵심 판단 기준: 점수가 아니라, "완전히 조합된 한글 음절"을 이루는가.
+  // 이게 실제 한글 입력기가 하는 판단과 같다 - 진짜 영단어는 이 조건을 통과하는
+  // 경우가 거의 없으므로(자모가 어중간하게 남음), 이 조건 하나로 충분한 안전장치가 된다.
+  if (!isFullyComposedHangul(converted)) return;
 
   const editor = vscode.window.visibleTextEditors.find(
     (e) => e.document.uri.toString() === document.uri.toString()

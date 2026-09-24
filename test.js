@@ -10,10 +10,11 @@
  */
 
 const assert = require('assert');
-const { convertEngToKor, isConvertibleAlphabet } = require('./hangulAssembler');
+const { convertEngToKor, isConvertibleAlphabet, isFullyComposedHangul } = require('./hangulAssembler');
 const { calculateConfidence, confidenceLabel } = require('./confidenceCalculator');
 const ContextDetector = require('./contextDetector');
 const { isPracticalWord, getWordCategory } = require('./practicalWords');
+const { isCommonEnglishWord } = require('./commonEnglishWords');
 
 let passed = 0;
 let failed = 0;
@@ -150,6 +151,53 @@ test('isPracticalWord: 목록에 있는 단어는 true', () => {
 
 test('getWordCategory: 올바른 카테고리를 반환한다', () => {
   assert.strictEqual(getWordCategory('함수'), '기본');
+});
+
+console.log('\n[commonEnglishWords] 진짜 영단어 블록리스트');
+
+test('흔한 영단어(function, error, test 등)는 블록리스트에 있다', () => {
+  assert.strictEqual(isCommonEnglishWord('function'), true);
+  assert.strictEqual(isCommonEnglishWord('Error'), true); // 대소문자 무관
+  assert.strictEqual(isCommonEnglishWord('test'), true);
+});
+
+test('한글 오타로 보이는 단어(dkssud 등)는 블록리스트에 없다', () => {
+  assert.strictEqual(isCommonEnglishWord('dkssud'), false);
+  assert.strictEqual(isCommonEnglishWord('gktpdy'), false);
+});
+
+console.log('\n[hangulAssembler] isFullyComposedHangul - 점수가 아니라 "완성된 한글 음절"인지가 진짜 기준');
+
+test('dkssud -> 안녕은 완전히 조합된 한글 음절이다 (자동변환 대상)', () => {
+  assert.strictEqual(isFullyComposedHangul(convertEngToKor('dkssud')), true);
+});
+
+test('진짜 영단어 test -> 자음만 연속이라 완성된 음절이 안 나오고 자모만 남는다 (자동변환 제외)', () => {
+  const converted = convertEngToKor('test');
+  assert.strictEqual(isFullyComposedHangul(converted), false);
+});
+
+test('진짜 영단어 code -> 완전한 음절로 안 맞아떨어진다 (자동변환 제외)', () => {
+  const converted = convertEngToKor('code');
+  assert.strictEqual(isFullyComposedHangul(converted), false);
+});
+
+test('빈 문자열/변환 안 된 원본 그대로는 false', () => {
+  assert.strictEqual(isFullyComposedHangul(''), false);
+  assert.strictEqual(isFullyComposedHangul('abc'), false);
+});
+
+console.log('\n[extension.js 자동변환 시나리오] README 기본 예시가 실제로 자동변환 조건(완성된 한글 음절)을 만족하는지 확인');
+
+test('dkssud -> 안녕: 흔한 영단어 블록리스트에도 없고, 완전히 조합된 한글이다 (자동변환 대상 확정)', () => {
+  const converted = convertEngToKor('dkssud');
+  assert.ok(!isCommonEnglishWord('dkssud'));
+  assert.ok(isFullyComposedHangul(converted));
+});
+
+test('실제 영단어(test)는 블록리스트로도 걸러지고, 설령 블록리스트에 없었어도 조합 결과가 지저분해서 이중으로 막힌다', () => {
+  assert.strictEqual(isCommonEnglishWord('test'), true);
+  assert.strictEqual(isFullyComposedHangul(convertEngToKor('test')), false);
 });
 
 console.log(`\n${passed}개 통과, ${failed}개 실패\n`);

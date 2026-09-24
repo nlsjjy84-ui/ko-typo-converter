@@ -52,11 +52,11 @@
         "ko-typo.autoConvert": {
           "type": "boolean",
           "default": true,
-          "description": "자동 변환 활성화 여부 (신뢰도 90 이상만 자동)"
+          "description": "자동 변환 활성화 여부 (흔한 영단어 목록에 없고 신뢰도 50 이상이면 자동)"
         },
         "ko-typo.confidenceThreshold": {
           "type": "number",
-          "default": 70,
+          "default": 50,
           "minimum": 0,
           "maximum": 100,
           "description": "제안 표시 최소 신뢰도 (0-100)"

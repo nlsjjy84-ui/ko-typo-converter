@@ -20,10 +20,11 @@
 - HTML/JSX 태그 (<tag>)
 - 괄호 내부 ({}, (), [])
 
-### 3️⃣ **신뢰도 기반 변환**
-- **90점 이상**: 자동 변환
-- **70~89점**: 제안 표시 (황색 물결)
-- **50~69점**: 무시
+### 3️⃣ **"완성된 한글 음절인가" 기준 자동 변환 + 흔한 영단어 필터**
+- 점수를 쌓아서 임계값을 넘기는 방식이 아니라, 실제 한글 입력기처럼 **"이 자모 조합이 문법적으로 완성된 한글 음절을 이루는가"**를 기준으로 판단
+- 완성된 음절이면 스페이스바를 누르는 순간 바로 자동 변환 (예: `dkssud` + 스페이스 → `안녕`)
+- `function`, `error`, `test`처럼 흔한 영단어는 애초에 변환 후보에서 제외 (완성된 음절로 잘못 맞아떨어지는 경우까지 이중으로 방지)
+- 신뢰도 점수는 이제 자동 변환 여부를 가르는 기준이 아니라, 진단 메시지에 표시되는 참고 정보
 
 ### 4️⃣ **실무 단어 인식**
 - 코드에서 자주 사용되는 90+ 한글 단어
@@ -71,7 +72,7 @@ VS Code → 설정 (`Ctrl+,`) → "한영 변환"
 ```json
 {
   "ko-typo.autoConvert": true,           // 자동 변환 활성화
-  "ko-typo.confidenceThreshold": 70,     // 제안 표시 임계값
+  "ko-typo.confidenceThreshold": 50,     // 제안 표시 임계값
   "ko-typo.showDiagnostics": true,       // 진단 정보 표시
   "ko-typo.excludePatterns": [           // 제외 파일 패턴
     "*.md",
@@ -92,8 +93,10 @@ ko-typo-converter/
 ├── contextDetector.js          # 코드 컨텍스트 감지
 ├── confidenceCalculator.js     # 신뢰도 계산 로직
 ├── practicalWords.js           # 실무 한글 단어 목록
+├── commonEnglishWords.js       # 진짜 영단어 블록리스트 (오탐 방지)
 ├── package.json                # npm 패키지 설정
 ├── .vscodeignore               # 배포 제외 파일
+├── LICENSE.md                  # MIT 라이선스
 └── README.md                   # 이 파일
 ```
 

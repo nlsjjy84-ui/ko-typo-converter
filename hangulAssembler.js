@@ -248,7 +248,29 @@ function isConvertibleAlphabet(word) {
   return [...word].every((ch) => assembler.keyMap[ch] !== undefined);
 }
 
+/**
+ * 설계 개선 (2026-09-24, 사용자 피드백 반영): 변환된 결과가 "온전히 조합된 한글
+ * 음절"로만 이루어져 있는지 확인한다.
+ *
+ * 사용자가 지적한 핵심 통찰: 진짜 영단어가 2벌식으로 조합됐을 때 완전한 한글
+ * 음절로 깔끔하게 맞아떨어지는 경우는 실제로 매우 드물다 (예: "test"는 자음만
+ * 4개 연속이라 완성된 음절 없이 자모 하나("ㅅ")만 덩그러니 남고, "code"도 중간에
+ * 모음/자음이 어긋나서 깨진 형태로 나온다). 반대로 "dkssud"처럼 실제로 한글
+ * 자판으로 친 것은 초성+중성(+종성)이 딱 맞아떨어져서 완전한 음절들로만 구성된
+ * 결과가 나온다. 즉 "완전히 조합됐는가"가 "이게 진짜 한글 오타인가"를 가려내는
+ * 매우 강력한 신호이다. 이 체크로 흔한 영단어 블록리스트에 없는 단어라도, 조합
+ * 결과가 지저분하면(자모가 홀로 남거나 원본 문자가 그대로 섞여있으면) 걸러낼 수
+ * 있다.
+ * @param {string} str - convertEngToKor()의 변환 결과
+ * @returns {boolean} - 완성된 한글 음절(가~힣)로만 이루어져 있으면 true
+ */
+function isFullyComposedHangul(str) {
+  if (!str) return false;
+  return /^[가-힣]+$/.test(str);
+}
+
 module.exports = HangulAssembler;
 module.exports.HangulAssembler = HangulAssembler;
 module.exports.convertEngToKor = convertEngToKor;
 module.exports.isConvertibleAlphabet = isConvertibleAlphabet;
+module.exports.isFullyComposedHangul = isFullyComposedHangul;
