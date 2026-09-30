@@ -95,9 +95,18 @@ class ConfidenceCalculator {
       'template_literal': 8,
       'comment_line': 5,
       'comment_block': 5,
+      // 2026-09-30: 언어별 주석 스타일 확장(파이썬/YAML/쉘의 #, SQL/Lua의 --,
+      // HTML/XML/마크다운의 <!-- -->) + 실제로 연결된 태그 텍스트/안전한 괄호 존
+      'comment_hash': 5,
+      'comment_dash': 5,
+      'comment_html': 5,
       'tag_content': 8,
+      'tag_text': 8,
       'bracket_brace': 6,
-      'bracket_paren': 6
+      'bracket_paren': 6,
+      // 중괄호({})는 실제 연결 과정에서 안전하게 좁힐 방법이 없어 제외했고(아래 extension.js
+      // 주석 참고), 소괄호만 "안전 조건"을 만족할 때 낮은 보너스로 반영한다.
+      'bracket_paren_safe': 4
     };
     return bonusMap[context] || 0;
   }

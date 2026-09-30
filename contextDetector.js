@@ -13,6 +13,14 @@
  * 종료되고, 그 아래 "5. <꺾쇠괄호>..." 줄이 주석 밖 코드로 취급되어 SyntaxError로 파일
  * 자체가 로드되지 않고 있었다. require('./contextDetector')를 호출하는 confidenceCalculator.js를
  * 비롯해 이 파일을 거치는 모든 것이 그 즉시 깨지는 심각한 버그였다.
+ *
+ * 참고 (2026-09-30): 이 클래스는 confidenceCalculator.js가 require는 하지만 실제로는
+ * 어떤 메서드도 호출하지 않는다 - 즉 여기 구현된 태그(detectTags)·괄호(detectBrackets)
+ * 감지는 지금까지 실제 변환/진단 파이프라인에 전혀 연결된 적이 없었다(주석·문자열 감지
+ * 로직만 extension.js에 따로 재구현되어 실제로 쓰이고 있었음). 태그/괄호를 실제로 동작하게
+ * 만드는 작업은 이 파일을 고치는 대신 extension.js에 언어별 인식(더 안전하게 좁힌 조건
+ * 포함)으로 새로 구현했다 - 자세한 이유는 extension.js의 findSafeBracketZones/TAG_TEXT_REGEX
+ * 주석 참고. 이 파일은 이제 테스트(test.js)에서만 참조되는 참고용 모듈이다.
  */
 
 class ContextDetector {

@@ -2,10 +2,10 @@
   "name": "ko-typo-converter",
   "displayName": "한영타자 변환기 (Ko-Typo Converter)",
   "description": "영문 타이핑 실수(한글 오타)를 자동으로 감지하고 변환해주는 VS Code 확장",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "publisher": "nlsjjy84-ui",
   "author": {
-    "name": "주영",
+    "name": "장주영",
     "email": "nlsjjy84@gmail.com"
   },
   "license": "MIT",
@@ -66,6 +66,12 @@
           "default": true,
           "description": "에디터에 진단 정보 표시"
         },
+        "ko-typo.autoConvertDelayMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "description": "타이핑을 멈춘 뒤 자동 변환을 시도하기까지 기다리는 시간(ms). 짧을수록 빨리 바뀌지만, 단어를 치다가 잠깐 멈추는 습관이 있으면 값을 늘리는 게 좋습니다."
+        },
         "ko-typo.excludePatterns": {
           "type": "array",
           "default": [
@@ -74,6 +80,11 @@
             "package.json"
           ],
           "description": "변환 제외할 파일 패턴"
+        },
+        "ko-typo.reverseConvert": {
+          "type": "boolean",
+          "default": true,
+          "description": "반대 방향 자동 변환 활성화 여부: 한글로 잘못 쳐졌지만 사실은 프로그래밍 키워드나 이 파일에 이미 쓰인 함수/변수 이름이면 원래 영어 용어로 되돌립니다. (코드 영역에서만 동작, 주석/문자열은 대상 아님)"
         }
       }
     },
@@ -87,7 +98,7 @@
     ]
   },
   "scripts": {
-    "test": "node test.js",
+    "test": "node test.js && node test/extension.save.test.js && node test/extension.debounce.test.js && node test/extension.reverse.test.js && node test/extension.zones.test.js",
     "package": "vsce package"
   },
   "devDependencies": {

@@ -15,6 +15,7 @@ const { calculateConfidence, confidenceLabel } = require('./confidenceCalculator
 const ContextDetector = require('./contextDetector');
 const { isPracticalWord, getWordCategory } = require('./practicalWords');
 const { isCommonEnglishWord } = require('./commonEnglishWords');
+const { getAllZones } = require('./zoneDetector');
 
 let passed = 0;
 let failed = 0;
@@ -198,6 +199,52 @@ test('dkssud -> 안녕: 흔한 영단어 블록리스트에도 없고, 완전히
 test('실제 영단어(test)는 블록리스트로도 걸러지고, 설령 블록리스트에 없었어도 조합 결과가 지저분해서 이중으로 막힌다', () => {
   assert.strictEqual(isCommonEnglishWord('test'), true);
   assert.strictEqual(isFullyComposedHangul(convertEngToKor('test')), false);
+});
+
+console.log('\n[zoneDetector] 태그/괄호를 실제로 연결하면서 추가한 안전장치 (2026-09-30)');
+
+function zoneTexts(text, languageId) {
+  return getAllZones(text, languageId).map((z) => text.slice(z.start, z.end));
+}
+
+test('함수 호출에 붙은 소괄호는 안전 괄호 존으로 잡히지 않는다 (진짜 코드 보호)', () => {
+  const found = zoneTexts('function login(dkssud) { return dkssud; }', 'javascript');
+  assert.ok(!found.some((f) => f.includes('dkssud')));
+});
+
+test('if 블록의 중괄호는 안전 괄호 존으로 잡히지 않는다 (블록문/객체 리터럴 보호)', () => {
+  const found = zoneTexts('if (a > b) { dkssud } else if (c < d) { dkssud2 }', 'javascriptreact');
+  assert.strictEqual(found.length, 0);
+});
+
+test('코드에 안 붙은 순수 텍스트 괄호는 안전 괄호 존으로 잡힌다', () => {
+  const found = zoneTexts('const x = 1;\n(dkssud) 참고', 'javascript');
+  assert.ok(found.includes('(dkssud)'));
+});
+
+test('JSX 태그 내부 텍스트는 태그 존으로 잡힌다 (마크업 언어에서만)', () => {
+  const found = zoneTexts('<div>dkssud</div>', 'javascriptreact');
+  assert.ok(found.some((f) => f.includes('dkssud')));
+});
+
+test('일반 .js 파일에서는 태그 존을 켜지 않는다 (비교 연산자 오인 방지)', () => {
+  const found = zoneTexts('<div>dkssud</div>', 'javascript');
+  assert.strictEqual(found.length, 0);
+});
+
+test('파이썬 "#" 주석은 존으로 잡히고, "//"는 주석으로 취급하지 않는다', () => {
+  assert.ok(zoneTexts('x = 1  # dkssud', 'python').includes('# dkssud'));
+  assert.strictEqual(zoneTexts('x = a // dkssud', 'python').length, 0);
+});
+
+test('SQL은 "--"와 "#" 한 줄 주석, "/* */" 블록 주석을 모두 인식한다', () => {
+  assert.ok(zoneTexts('SELECT 1; -- dkssud', 'sql').includes('-- dkssud'));
+  assert.ok(zoneTexts('SELECT 1; # dkssud', 'sql').includes('# dkssud'));
+  assert.ok(zoneTexts('SELECT 1; /* dkssud */', 'sql').includes('/* dkssud */'));
+});
+
+test('HTML 주석(<!-- -->)을 인식한다', () => {
+  assert.ok(zoneTexts('<!-- dkssud -->', 'html').includes('<!-- dkssud -->'));
 });
 
 console.log(`\n${passed}개 통과, ${failed}개 실패\n`);
