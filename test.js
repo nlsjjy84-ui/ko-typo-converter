@@ -89,6 +89,35 @@ test('convertEngToKor: 빈 문자열/falsy는 그대로 반환', () => {
   assert.strictEqual(convertEngToKor(null), null);
 });
 
+console.log('\n[hangulAssembler] 버그 수정 (2026-09-30): 자음/모음이 짝 없이 홀로 남는 경우');
+
+test('return -> 짝 없는 자음(r,e)이 앞에서 덮어써지지 않고 낱자로 남는다 (공개 라이브러리 qwerty-dubeolsik과 대조 검증)', () => {
+  // 이전 버그: chosung이 있고 jungsung이 없는 상태에서 새 자음이 오면 이전 자음을
+  // 덮어써서 없애버렸다 (r,e,t가 연달아 와도 마지막 t만 남음). 그 결과 "셔구"처럼
+  // 깔끔하게(=완전히 조합된 음절로) 나와서 reverseMapper가 진짜 오타로 오인할 위험이 있었다.
+  const result = convertEngToKor('return');
+  assert.strictEqual(result, 'ㄱㄷ셔구');
+  assert.strictEqual(isFullyComposedHangul(result), false);
+});
+
+test('const -> 초성 없이 홀로 대기 중이던 모음이 다음 자음에 잘못 흡수되지 않는다', () => {
+  // 이전 버그: o(ㅐ)+n(ㅜ)가 복합모음이 아니라서 "채"를 흘려보내고 ㅜ만 초성 없이 남는데,
+  // 그 다음 자음 s(ㄴ)이 올 때 "chosung===null"이라는 조건만 보고 이 leftover 모음을
+  // 마치 원래 짝이었던 것처럼 엮어 "채눗"이라는 깨끗한(=완전히 조합된) 결과를 만들어냈다.
+  const result = convertEngToKor('const');
+  assert.strictEqual(result, '채ㅜㄴㅅ');
+  assert.strictEqual(isFullyComposedHangul(result), false);
+});
+
+test('알려진 한계: 겹받침(모음 뒤 자음 2개가 하나의 종성으로 합쳐지는 경우, 예: sort -> 냀)은 아직 지원하지 않는다', () => {
+  // qwerty-dubeolsik은 sort를 "냀"(ㄴ+ㅐ+ㄳ 겹받침) 한 음절로 조합하지만, 이 프로젝트는
+  // 겹받침 합성 로직이 없어 "낵ㅅ"으로 두 덩어리로 나온다. 실사용 영향은 적지만(그 자체로
+  // 완전히 조합된 음절이 아니므로 오탐 위험은 없음) 다음 개선 항목으로 남겨둔다.
+  const result = convertEngToKor('sort');
+  assert.strictEqual(result, '낵ㅅ');
+  assert.strictEqual(isFullyComposedHangul(result), false);
+});
+
 console.log('\n[hangulAssembler] 왕복 검증 (실제 단어 인코딩 -> 디코딩)');
 
 test('여러 실무 단어가 인코딩 후 다시 정확히 디코딩된다', () => {

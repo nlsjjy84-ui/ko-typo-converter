@@ -2,7 +2,7 @@
   "name": "ko-typo-converter",
   "displayName": "한영타자 변환기 (Ko-Typo Converter)",
   "description": "영문 타이핑 실수(한글 오타)를 자동으로 감지하고 변환해주는 VS Code 확장",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "nlsjjy84-ui",
   "author": {
     "name": "장주영",

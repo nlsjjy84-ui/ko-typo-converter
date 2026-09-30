@@ -110,11 +110,31 @@ class HangulAssembler {
 
       // 자음 확인
       if (this.isConsonant(jamo)) {
-        if (this.chosung === null) {
+        if (this.chosung === null && this.jungsung === null) {
           // 초성 설정
           this.chosung = jamo;
+        } else if (this.chosung === null) {
+          // 버그 수정 (2026-09-30): 초성 없이 모음만 홀로 대기 중인 상태(예: "const"의
+          // c+o+n에서 o(ㅐ)+n(ㅜ)가 복합모음이 아니라 "채"를 흘려보내고 ㅜ만 초성 없이
+          // 남은 상태)에서 자음이 오면, 바로 아래 "초성 설정" 분기 조건(chosung===null)에
+          // 걸려 이 leftover 모음을 마치 원래 기다리고 있던 짝인 것처럼 새 자음과 엮어버리는
+          // 문제가 있었다(예: 대기 중이던 ㅜ + 새 자음 ㄴ → "눈"처럼 잘못 결합). 실제로는
+          // 그 모음은 이미 짝 없이 끝난 것이므로 낱자로 먼저 흘려보내고, 새 자음으로 초성을
+          // 새로 시작해야 한다.
+          result += this.jungsung;
+          this.jungsung = null;
+          this.chosung = jamo;
         } else if (this.jungsung === null) {
-          // 초성만 있고 중성이 없으면 (쌍자음 등) 초성 업데이트
+          // 버그 수정 (2026-09-30): 초성만 있고 중성이 없는 상태에서 또 자음이 오면,
+          // 실제 한글 입력기에서는 앞 자음이 짝(모음)을 못 찾은 채 독립된 낱자로 화면에
+          // 남고, 새 자음이 다음 음절의 초성 후보가 된다. 기존 코드는 이 경우 앞 자음을
+          // 뒤 자음으로 그냥 덮어써서 없애버렸는데(예: "return"의 r,e,t가 연달아 와도
+          // 마지막 t만 남음), 공개 라이브러리(qwerty-dubeolsik)와 대조해보니 실제
+          // 입력기는 덮어쓰지 않고 낱자를 그대로 남긴다는 걸 확인했다. 이 차이 때문에
+          // return/const/class/export/string 등 자음 2개 이상으로 시작하는 흔한 영단어가
+          // "완전히 조합된 한글 음절"처럼 보여 reverseMapper의 오탐지 위험을 키우고
+          // 있었다. 앞 자음을 낱자로 흘려보내고 새 자음으로 초성을 다시 시작하도록 수정.
+          result += this.chosung;
           this.chosung = jamo;
         } else {
           // 버그 수정 (2026-09-24): 초성+중성이 이미 있는 상태에서 자음이 오면, 그 자음이
@@ -151,9 +171,14 @@ class HangulAssembler {
           if (complex) {
             this.jungsung = complex;
           } else {
-            // 복합 모음이 아니면, 현재까지의 음절 완성
-            const syllable = this.createSyllable(this.chosung, this.jungsung, null);
-            result += syllable;
+            // 버그 수정 (2026-09-30): 복합 모음이 아니면 현재까지의 음절을 완성해서
+            // 흘려보내야 하는데, 초성이 없는 상태(모음이 자음 없이 먼저 온 경우)에서는
+            // createSyllable이 chosung===null이라 빈 문자열을 반환해 앞 모음이 그냥
+            // 사라지는 문제가 있었다. 초성이 있으면 음절로 완성하고, 없으면 대기 중인
+            // 모음을 낱자 그대로 흘려보낸다(실제 입력기와 동일).
+            result += this.chosung !== null
+              ? this.createSyllable(this.chosung, this.jungsung, null)
+              : this.jungsung;
             this.chosung = null;
             this.jungsung = jamo;
           }
