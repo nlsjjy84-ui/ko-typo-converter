@@ -123,20 +123,22 @@ async function main() {
   });
 
   console.log('\n[extension.js] 반대 방향(한글→영어) 변환이 새로 추가된 존 타입(태그/안전 괄호)도 똑같이 존중한다');
+  // 2026-10-13: const를 한글 상태로 치면 실제 입력기에서는 "채ㅜㄴㅅ"가 된다(v0.0.5 엔진 = 공개 라이브러리와 같은 결과).
+  // 예전 테스트는 옛 엔진이 만들던 "채눗"을 그대로 적어 두어, 엔진을 고친 뒤 실제와 다른 글자를 검사하고 있었다.
 
-  await test('JSX 태그 내부의 "채눗"(const 오타)은 진짜 한글일 수 있으니 되돌리지 않는다', async () => {
-    assert.strictEqual(await convert('<div>채눗</div>', 'javascriptreact'), '<div>채눗</div>');
+  await test('JSX 태그 내부의 "채ㅜㄴㅅ"(const 오타)은 진짜 한글일 수 있으니 되돌리지 않는다', async () => {
+    assert.strictEqual(await convert('<div>채ㅜㄴㅅ</div>', 'javascriptreact'), '<div>채ㅜㄴㅅ</div>');
   });
 
-  await test('안전한 괄호 존 안의 "채눗"도 되돌리지 않는다 (주석/문자열과 동일 취급)', async () => {
+  await test('안전한 괄호 존 안의 "채ㅜㄴㅅ"도 되돌리지 않는다 (주석/문자열과 동일 취급)', async () => {
     assert.strictEqual(
-      await convert('const y = 1;\n(채눗) 참고', 'javascript'),
-      'const y = 1;\n(채눗) 참고'
+      await convert('const y = 1;\n(채ㅜㄴㅅ) 참고', 'javascript'),
+      'const y = 1;\n(채ㅜㄴㅅ) 참고'
     );
   });
 
-  await test('반면 코드(식별자) 자리의 "채눗"은 그대로 const로 되돌린다 (존 밖이므로)', async () => {
-    assert.strictEqual(await convert('채눗 x = 1;', 'javascript'), 'const x = 1;');
+  await test('반면 코드(식별자) 자리의 "채ㅜㄴㅅ"은 그대로 const로 되돌린다 (존 밖이므로)', async () => {
+    assert.strictEqual(await convert('채ㅜㄴㅅ x = 1;', 'javascript'), 'const x = 1;');
   });
 
   console.log(`\n${passed}개 통과, ${failed}개 실패\n`);

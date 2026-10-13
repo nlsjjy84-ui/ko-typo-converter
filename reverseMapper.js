@@ -28,7 +28,14 @@
  * 없이 100% 정확하게 일치 여부를 판단할 수 있다.
  */
 
-const { convertEngToKor, isFullyComposedHangul } = require('./hangulAssembler');
+const { convertEngToKor } = require('./hangulAssembler');
+
+// 한글 음절(가-힣)과 낱자(ㄱ-ㅣ)로만 이뤄져 있는지. 한 글자짜리는 완성된 음절일 때만(예: for → 랙)
+// 받아들이고, 낱자 하나(ㄱ)는 너무 흔해 뺀다.
+function isHangulOnly(str) {
+  if (!/^[가-힣ㄱ-ㅣ]+$/.test(str)) return false;
+  return str.length >= 2 || /^[가-힣]$/.test(str);
+}
 
 /**
  * 영어 후보 단어 목록을 받아서, "그 단어를 2벌식 한글 IME 상태로 쳤을 때 나오는 한글" →
@@ -44,7 +51,12 @@ function buildReverseLookupTable(terms) {
     // 순변환 결과가 "완전히 조합된 한글 음절"이 아니면(자모가 어중간하게 남으면),
     // 실제로 타이핑했을 때도 그런 애매한 형태로 남는다는 뜻이라 조회 대상에서 제외한다
     // (forward 방향과 동일한 기준 - hangulAssembler.js의 isFullyComposedHangul 참고).
-    if (!garbled || garbled === term || !isFullyComposedHangul(garbled)) continue;
+    // 버그 수정 (2026-10-13): v0.0.5부터 엔진이 실제 입력기처럼 짝 없는 자모를 낱자로 남기므로,
+    // "console" → "채ㅜ내ㅣㄷ"처럼 낱자가 섞인 결과가 바로 그 사람이 화면에서 보게 되는 글자다.
+    // 예전처럼 "완성된 음절만"으로 거르면 이런 흔한 용어가 표에서 전부 빠져 반대 방향이 동작하지
+    // 않았다. 한글(음절·낱자)로만 이뤄져 있으면 표에 넣는다. 오탐은 ① 알려진 용어·이 문서의
+    // 식별자와 글자 하나까지 같아야 하고 ② 코드 자리에서만 바꾸는 두 겹으로 막는다.
+    if (!garbled || garbled === term || !isHangulOnly(garbled)) continue;
 
     const existing = table.get(garbled);
     if (!existing) {

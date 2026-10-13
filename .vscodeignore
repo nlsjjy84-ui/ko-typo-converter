@@ -13,3 +13,6 @@ test.js
 coverage
 *.test.js
 *.spec.js
+
+test/**
+.github/**

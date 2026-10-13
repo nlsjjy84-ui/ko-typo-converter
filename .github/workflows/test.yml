@@ -1,0 +1,21 @@
+# push·PR마다 테스트를 돈다. 마켓플레이스에 올리기 전에 여기서 먼저 통과해야 한다.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Tests (엔진 43 + 확장 동작 24)
+        run: npm test

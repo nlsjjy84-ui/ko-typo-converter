@@ -276,6 +276,27 @@ test('HTML 주석(<!-- -->)을 인식한다', () => {
   assert.ok(zoneTexts('<!-- dkssud -->', 'html').includes('<!-- dkssud -->'));
 });
 
+console.log('\n[reverseMapper] 반대 방향 표 — 실제 입력기 결과(낱자 섞임)도 찾고, 흔한 한글은 건드리지 않는다');
+const { buildReverseLookupTable } = require('./reverseMapper');
+const { TERMS } = require('./programmingTerms');
+const reverseTable = buildReverseLookupTable(TERMS);
+
+test('낱자가 섞인 실제 입력 결과도 되돌린다: 채ㅜ내ㅣㄷ → console, 채ㅜㄴㅅ → const, ㄱㄷ셔구 → return', () => {
+  assert.strictEqual(reverseTable.get('채ㅜ내ㅣㄷ'), 'console');
+  assert.strictEqual(reverseTable.get('채ㅜㄴㅅ'), 'const');
+  assert.strictEqual(reverseTable.get('ㄱㄷ셔구'), 'return');
+});
+
+test('한 글자짜리는 완성된 음절일 때만 받는다: 랙 → for', () => {
+  assert.strictEqual(reverseTable.get('랙'), 'for');
+  for (const k of reverseTable.keys()) assert.ok(k.length >= 2 || /^[가-힣]$/.test(k), k);
+});
+
+test('흔한 한글 낱말(안녕·사람·값·코드 등 40개)은 표에 없다 — 진짜 한글을 영어로 바꾸지 않게', () => {
+  const common = ['안녕', '사람', '이것', '그것', '우리', '나라', '시간', '오늘', '내일', '사랑', '학교', '회사', '친구', '감사', '정말', '진짜', '좋아', '이름', '주소', '번호', '에러', '오류', '함수', '변수', '배열', '객체', '코드', '가', '나', '다', '이', '그', '안', '값', '키', '끝', '앞', '뒤', '글', '말'];
+  assert.deepStrictEqual(common.filter((w) => reverseTable.has(w)), []);
+});
+
 console.log(`\n${passed}개 통과, ${failed}개 실패\n`);
 
 if (failed > 0) {

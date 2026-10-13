@@ -40,7 +40,11 @@ const WORD_REGEX = /[a-zA-Z]{3,}/g;
 // 반대 방향(한글 → 영어) 후보를 찾을 때 쓰는 정규식 - 완성된 한글 음절 1글자 이상.
 // (예: "error"가 한글로 잘못 조합되면 음절 1개("객")짜리가 되므로 2글자 이상으로
 // 제한하면 이런 흔한 키워드를 놓친다 - 대신 사전 완전일치로만 판단해 안전하게 좁힌다.)
-const HANGUL_WORD_REGEX = /[가-힣]+/g;
+// 버그 수정 (2026-10-13): v0.0.5에서 조합 엔진을 실제 입력기와 똑같이 고친 뒤로, 영어 용어를 한글
+// 상태로 치면 "채ㅜ내ㅣㄷ"(console)처럼 낱자가 섞여 나온다. 완성된 음절(가-힣)만 찾으면 이런
+// 덩어리를 못 잡아 반대 방향 변환이 거의 동작하지 않았다(GitHub에서 테스트를 돌리며 발견).
+// 낱자(ㄱ-ㅣ)까지 같은 덩어리로 본다.
+const HANGUL_WORD_REGEX = /[가-힣ㄱ-ㅣ]+/g;
 
 // 버그 수정 (2026-09-24): package.json/README에는 ko-typo.autoConvert,
 // ko-typo.confidenceThreshold, ko-typo.showDiagnostics, ko-typo.excludePatterns 네 가지
@@ -341,7 +345,7 @@ function tryReverseConvertWordEndingAt(document, boundaryOffset) {
 
   const fullText = document.getText();
   const beforeText = fullText.slice(0, boundaryOffset);
-  const wordMatch = beforeText.match(/[가-힣]+$/);
+  const wordMatch = beforeText.match(/[가-힣ㄱ-ㅣ]+$/);
   if (!wordMatch) return false;
 
   const word = wordMatch[0];
