@@ -109,13 +109,13 @@ test('const -> 초성 없이 홀로 대기 중이던 모음이 다음 자음에 
   assert.strictEqual(isFullyComposedHangul(result), false);
 });
 
-test('알려진 한계: 겹받침(모음 뒤 자음 2개가 하나의 종성으로 합쳐지는 경우, 예: sort -> 냀)은 아직 지원하지 않는다', () => {
-  // qwerty-dubeolsik은 sort를 "냀"(ㄴ+ㅐ+ㄳ 겹받침) 한 음절로 조합하지만, 이 프로젝트는
-  // 겹받침 합성 로직이 없어 "낵ㅅ"으로 두 덩어리로 나온다. 실사용 영향은 적지만(그 자체로
-  // 완전히 조합된 음절이 아니므로 오탐 위험은 없음) 다음 개선 항목으로 남겨둔다.
+test('겹받침 지원(v0.0.7): sort를 한글 상태로 치면 실제 입력기처럼 "낷"(ㄴ+ㅐ+ㄳ) 한 글자가 된다', () => {
+  // 예전(v0.0.6까지)에는 겹받침이 없어 "낵ㅅ"으로 나왔고, 이 테스트가 그 한계를 기록하고 있었다.
+  // 이제 sort는 완성된 글자가 되므로, 흔한 영어 목록(englishFrequent.js)이 그대로 두게 막는다.
   const result = convertEngToKor('sort');
-  assert.strictEqual(result, '낵ㅅ');
-  assert.strictEqual(isFullyComposedHangul(result), false);
+  assert.strictEqual(result, '낷');
+  assert.strictEqual(isFullyComposedHangul(result), true);
+  assert.ok(isCommonEnglishWord('sort'));
 });
 
 console.log('\n[hangulAssembler] 왕복 검증 (실제 단어 인코딩 -> 디코딩)');
@@ -274,6 +274,40 @@ test('SQL은 "--"와 "#" 한 줄 주석, "/* */" 블록 주석을 모두 인식�
 
 test('HTML 주석(<!-- -->)을 인식한다', () => {
   assert.ok(zoneTexts('<!-- dkssud -->', 'html').includes('<!-- dkssud -->'));
+});
+
+console.log('\n[hangulAssembler] 겹받침 (v0.0.7) — 실제 입력기와 같은 결과');
+test('겹받침: rkqt → 값, ekfr → 닭, djqttmqslek → 없습니다, dksgdkdy → 않아요, aksgdl → 많이', () => {
+  assert.strictEqual(convertEngToKor('rkqt'), '값');
+  assert.strictEqual(convertEngToKor('ekfr'), '닭');
+  assert.strictEqual(convertEngToKor('djqttmqslek'), '없습니다');
+  assert.strictEqual(convertEngToKor('dksgdkdy'), '않아요');
+  assert.strictEqual(convertEngToKor('aksgdl'), '많이');
+});
+test('두 번째 자음 뒤에 모음이 오면 다음 음절로 넘어간다: ekfrk → 달가, ekfrdl → 닭이', () => {
+  assert.strictEqual(convertEngToKor('ekfrk'), '달가');
+  assert.strictEqual(convertEngToKor('ekfrdl'), '닭이');
+});
+test('겹받침이 안 되는 짝은 합치지 않는다: rkrr → 각ㄱ (ㄱㄱ은 겹받침이 아님)', () => {
+  assert.strictEqual(convertEngToKor('rkrr'), '각ㄱ');
+});
+test('받침이 될 수 없는 ㄸ·ㅃ·ㅉ은 다음 음절로 — 음절이 사라지지 않는다: dkEk → 아따', () => {
+  assert.strictEqual(convertEngToKor('dkEk'), '아따');
+  assert.strictEqual(convertEngToKor('dkE'), '아ㄸ');
+});
+
+console.log('\n[commonEnglishWords] 흔한 영어 단어 10,713개는 그대로 (v0.0.7)');
+test('우연히 완성된 한글이 되는 흔한 영어(air→먁, city→챠쇼, cheap→촏메)를 그대로 둔다', () => {
+  for (const w of ['air', 'city', 'cheap', 'chair', 'clean', 'angry', 'did']) {
+    assert.ok(isFullyComposedHangul(convertEngToKor(w)), w + '는 조합하면 완성 글자가 됨(그래서 막아야 함)');
+    assert.ok(isCommonEnglishWord(w), w + '는 그대로 두는 목록에 있어야 함');
+  }
+});
+test('흔한 한글 오타는 여전히 바꾼다(dkssud·qksrkqtmqslek·rkatkgkqslek·djqtek는 영어 목록에 없음)', () => {
+  for (const w of ['dkssud', 'qksrkqtmqslek', 'rkatkgkqslek', 'djqtek', 'fhrmdls', 'tkdydwk']) {
+    assert.ok(!isCommonEnglishWord(w), w);
+    assert.ok(isFullyComposedHangul(convertEngToKor(w)), w);
+  }
 });
 
 console.log('\n[reverseMapper] 반대 방향 표 — 실제 입력기 결과(낱자 섞임)도 찾고, 흔한 한글은 건드리지 않는다');

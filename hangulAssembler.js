@@ -74,6 +74,12 @@ class HangulAssembler {
       'ㅡㅣ': 'ㅢ',
     };
 
+    // 겹받침 — 받침 자리에서 이어 친 두 자음이 하나의 받침으로 합쳐지는 짝 (표준 2벌식 입력기와 같음)
+    this.doubleJongsung = {
+      'ㄱㅅ': 'ㄳ', 'ㄴㅈ': 'ㄵ', 'ㄴㅎ': 'ㄶ', 'ㄹㄱ': 'ㄺ', 'ㄹㅁ': 'ㄻ', 'ㄹㅂ': 'ㄼ',
+      'ㄹㅅ': 'ㄽ', 'ㄹㅌ': 'ㄾ', 'ㄹㅍ': 'ㄿ', 'ㄹㅎ': 'ㅀ', 'ㅂㅅ': 'ㅄ',
+    };
+
     // 현재 상태
     this.reset();
   }
@@ -154,10 +160,31 @@ class HangulAssembler {
             this.chosung = jamo;
             this.jungsung = null;
           } else {
-            // 다음 글자가 모음이 아니거나 없음 → 이 자음은 현재 음절의 종성
-            result += this.createSyllable(this.chosung, this.jungsung, jamo);
-            this.chosung = null;
-            this.jungsung = null;
+            // 기능 추가 (2026-10-13, v0.0.7): 겹받침. 이 자음 다음에 또 자음이 오고, 둘이 겹받침이
+            // 되는 짝(ㄱㅅ→ㄳ, ㄹㄱ→ㄺ, ㅂㅅ→ㅄ …)이며, 그 다음 글자가 모음이 아니면 실제 입력기처럼
+            // 두 자음을 한 받침으로 합친다(값·닭·없·않). 그 다음 글자가 모음이면 두 번째 자음은 다음
+            // 음절의 초성으로 넘어간다(닭이 아니라 "달가"처럼 — ekfrk → 달가).
+            const nextNextChar = word[i + 2];
+            const nextNextJamo = nextNextChar ? this.keyMap[nextNextChar] : null;
+            const doubled = nextJamo && this.isConsonant(nextJamo) ? this.doubleJongsung[jamo + nextJamo] : null;
+            if (doubled && !(nextNextJamo && this.isVowel(nextNextJamo))) {
+              result += this.createSyllable(this.chosung, this.jungsung, doubled);
+              this.chosung = null;
+              this.jungsung = null;
+              i++; // 두 번째 자음까지 썼으므로 한 칸 더 건너뛴다
+            } else if (this.jongsungList.includes(jamo)) {
+              // 다음 글자가 모음이 아니거나 없음 → 이 자음은 현재 음절의 종성
+              result += this.createSyllable(this.chosung, this.jungsung, jamo);
+              this.chosung = null;
+              this.jungsung = null;
+            } else {
+              // 버그 수정 (2026-10-13): ㄸ·ㅃ·ㅉ은 받침이 될 수 없다. 예전에는 받침 자리에 넣다가
+              // createSyllable이 빈 문자열을 돌려줘 음절이 통째로 사라졌다. 실제 입력기처럼 앞 음절을
+              // 받침 없이 끝내고 이 자음으로 새 음절을 시작한다.
+              result += this.createSyllable(this.chosung, this.jungsung, null);
+              this.chosung = jamo;
+              this.jungsung = null;
+            }
           }
         }
       }

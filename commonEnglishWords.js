@@ -17,6 +17,8 @@
  * 신뢰도 임계값 자체는 훨씬 낮고 현실적인 수준으로 낮출 수 있다.
  */
 
+const { FREQUENT_ENGLISH } = require('./englishFrequent');
+
 const COMMON_ENGLISH_WORDS = new Set([
   // 관사/전치사/접속사/대명사류
   'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has', 'had',
@@ -69,7 +71,9 @@ const COMMON_ENGLISH_WORDS = new Set([
  */
 function isCommonEnglishWord(word) {
   if (!word) return false;
-  return COMMON_ENGLISH_WORDS.has(word.toLowerCase());
+  const w = word.toLowerCase();
+  // v0.0.7: 손으로 고른 코드 용어(287개)에 더해, 가장 흔한 영어 단어 목록(englishFrequent.js)도 그대로 둔다
+  return COMMON_ENGLISH_WORDS.has(w) || FREQUENT_ENGLISH.has(w);
 }
 
 module.exports = { COMMON_ENGLISH_WORDS, isCommonEnglishWord };
