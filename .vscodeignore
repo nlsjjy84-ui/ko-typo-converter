@@ -16,3 +16,7 @@ coverage
 
 test/**
 .github/**
+_apply/**
+publish-openvsx.*
+*.bat
+*.zip

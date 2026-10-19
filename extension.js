@@ -1,5 +1,5 @@
 const vscode = require('vscode');
-const { convertEngToKor, isConvertibleAlphabet, isFullyComposedHangul } = require('./hangulAssembler');
+const { isFullyComposedHangul } = require('./hangulAssembler');
 // 버그 수정 (2026-09-24): 실제 파일명은 confidenceCalculator.js인데 './confidence'를
 // require하고 있어서 활성화 즉시 "Cannot find module" 에러로 확장이 죽고 있었다.
 const { calculateConfidence, confidenceLabel } = require('./confidenceCalculator');
@@ -17,6 +17,7 @@ const { TERMS: PROGRAMMING_TERMS } = require('./programmingTerms');
 // 조건)와 언어별 주석 스타일(#, --, <!-- -->)까지 실제로 인식하도록 zoneDetector.js로
 // 분리/확장했다. 자세한 안전장치 설계는 zoneDetector.js 주석 참고.
 const { getAllZones } = require('./zoneDetector');
+const { getLayoutHelpers } = require('./keyboardLayout');
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('ko-typo-converter');
 
@@ -36,7 +37,7 @@ const diagnosticCollection = vscode.languages.createDiagnosticCollection('ko-typ
 // 아니라, 이미 "완성된 한글 음절"이라는 1차 기준을 통과한 후보들 중에서 추가로
 // 걸러내고 싶을 때 쓰는 보조 설정이다.
 
-const WORD_REGEX = /[a-zA-Z]{3,}/g;
+// 영문 단어를 찾는 규칙은 v0.1.0부터 자판별로 keyboardLayout.js의 getLayoutHelpers()가 정한다.
 // 반대 방향(한글 → 영어) 후보를 찾을 때 쓰는 정규식 - 완성된 한글 음절 1글자 이상.
 // (예: "error"가 한글로 잘못 조합되면 음절 1개("객")짜리가 되므로 2글자 이상으로
 // 제한하면 이런 흔한 키워드를 놓친다 - 대신 사전 완전일치로만 판단해 안전하게 좁힌다.)
@@ -53,6 +54,34 @@ const HANGUL_WORD_REGEX = /[가-힣ㄱ-ㅣ]+/g;
 // 반영한다.
 function getConfig() {
   return vscode.workspace.getConfiguration('ko-typo');
+}
+
+// v0.1.0: 설정한 자판(2벌식·세벌식 390·세벌식 최종)에 맞는 단어 규칙과 변환 함수
+function getLayout() {
+  return getLayoutHelpers(String(getConfig().get('keyboardLayout', '2')));
+}
+
+/**
+ * 단어를 한글로 바꿀 수 있으면 { start, word, converted }를 돌려준다.
+ * 3벌식은 기호도 자모 키라서 "//rk"처럼 앞에 기호가 붙어 잡힐 수 있다. 통째로 바꿔 완성된
+ * 한글이 안 되면, 앞쪽의 영문자가 아닌 글자를 떼고 한 번 더 본다.
+ * @param {string} word
+ */
+function resolveConvertible(word) {
+  const layout = getLayout();
+  const tries = [word];
+  const stripped = word.replace(/^[^a-zA-Z]+/, '');
+  if (stripped !== word && stripped.length >= 3) tries.push(stripped);
+  for (const w of tries) {
+    if (!layout.isConvertible(w)) continue;
+    // 진짜 영단어일 가능성이 높으면 자동변환하지 않는다 (오탐 방지 1차 안전장치)
+    if (isCommonEnglishWord(w)) continue;
+    const converted = layout.convert(w);
+    // 핵심 판단 기준: 점수가 아니라 "완전히 조합된 한글 음절"을 이루는가
+    if (!converted || converted === w || !isFullyComposedHangul(converted)) continue;
+    return { start: word.length - w.length, word: w, converted };
+  }
+  return null;
 }
 
 function isAutoConvertEnabled() {
@@ -110,23 +139,19 @@ function findCandidates(document) {
     const zoneStart = zone.start;
     const zoneType = zone.type;
 
-    WORD_REGEX.lastIndex = 0;
+    const wordRegex = getLayout().wordGlobal;
+    wordRegex.lastIndex = 0;
     let wordMatch;
-    while ((wordMatch = WORD_REGEX.exec(zoneText)) !== null) {
-      const word = wordMatch[0];
-      if (!isConvertibleAlphabet(word)) continue;
-      // 진짜 영단어일 가능성이 높으면 애초에 후보에서 제외 (오탐 방지 1차 안전장치)
-      if (isCommonEnglishWord(word)) continue;
-
-      const converted = convertEngToKor(word);
-      // 핵심 판단 기준: 결과가 "완전히 조합된 한글 음절"인가 (점수가 아니라 문법 여부)
-      if (converted === word || !isFullyComposedHangul(converted)) continue;
+    while ((wordMatch = wordRegex.exec(zoneText)) !== null) {
+      const resolved = resolveConvertible(wordMatch[0]);
+      if (!resolved) continue;
+      const { word, converted } = resolved;
 
       const confidence = calculateConfidence(word, converted, zoneType);
       // 신뢰도는 이제 게이트가 아니라 보조 필터 (기본값 50점이라 대부분 통과함)
       if (confidence < getConfidenceThreshold()) continue;
 
-      const absoluteStart = zoneStart + wordMatch.index;
+      const absoluteStart = zoneStart + wordMatch.index + resolved.start;
       const startPos = document.positionAt(absoluteStart);
       const endPos = document.positionAt(absoluteStart + word.length);
 
@@ -153,12 +178,13 @@ const reverseTableCache = new Map(); // document.uri 문자열 -> { version, tab
 function getReverseTableForDocument(document) {
   const key = document.uri.toString();
   const cached = reverseTableCache.get(key);
-  if (cached && cached.version === document.version) return cached.table;
+  const layout = getLayout();
+  if (cached && cached.version === document.version && cached.layout === layout.id) return cached.table;
 
   const text = document.getText();
   const docIdentifiers = collectDocumentIdentifiers(text);
-  const table = buildReverseLookupTable([...PROGRAMMING_TERMS, ...docIdentifiers]);
-  reverseTableCache.set(key, { version: document.version, table });
+  const table = buildReverseLookupTable([...PROGRAMMING_TERMS, ...docIdentifiers], layout.convert);
+  reverseTableCache.set(key, { version: document.version, layout: layout.id, table });
   return table;
 }
 
@@ -235,7 +261,7 @@ class KoTypoCodeActionProvider {
       if (diag.source !== 'ko-typo-converter') continue;
 
       const original = document.getText(diag.range);
-      const converted = convertEngToKor(original);
+      const converted = getLayout().convertText(original);
 
       const action = new vscode.CodeAction(
         `"${converted}"(으)로 변환`,
@@ -276,6 +302,50 @@ function isInsideZone(document, text, offset) {
 let isApplyingAutoFix = false;
 
 /**
+ * v0.1.0 (자동완성 목록 문제 수정): 단어 하나를 바꾸는 편집을 안전하게 적용한다.
+ * - 자동완성(IntelliSense) 목록이 떠 있으면, 편집이 목록과 부딪히거나 목록에서 고른 글자로
+ *   덮일 수 있다. 바꾸기 전에 목록을 먼저 닫는다(hideSuggestWidget). 목록이 없으면 아무 일도 없다.
+ * - 그 사이에 사용자가 더 쳐서 단어가 달라졌으면 바꾸지 않는다(엉뚱한 글자를 덮지 않게).
+ * - 편집이 거절되면(문서가 그 순간 바뀐 경우 VS Code가 false를 돌려줌) 잠깐 뒤 한 번만 다시 한다.
+ * @param {import('vscode').TextEditor} editor
+ * @param {import('vscode').Range} range
+ * @param {string} expected - 지금 그 자리에 있어야 할 원래 글자
+ * @param {string} replacement
+ */
+function applyWordFix(editor, range, expected, replacement) {
+  const doc = editor.document;
+  const currentText = () => doc.getText().slice(doc.offsetAt(range.start), doc.offsetAt(range.end));
+  const hideSuggest = () => {
+    try {
+      if (!vscode.commands || typeof vscode.commands.executeCommand !== 'function') return Promise.resolve();
+      return Promise.resolve(vscode.commands.executeCommand('hideSuggestWidget')).catch(() => {});
+    } catch (e) {
+      return Promise.resolve();
+    }
+  };
+  const attempt = (n) => hideSuggest()
+    .then(() => {
+      if (currentText() !== expected) return true; // 이미 바뀌었거나 사용자가 더 쳤으면 손대지 않음
+      return editor.edit((editBuilder) => {
+        editBuilder.replace(range, replacement);
+      });
+    })
+    .then((ok) => {
+      if (ok === false && n === 0) {
+        return new Promise((resolve) => setTimeout(resolve, 60)).then(() => attempt(1));
+      }
+      return ok;
+    });
+
+  isApplyingAutoFix = true;
+  attempt(0).then(() => {
+    isApplyingAutoFix = false;
+  }, () => {
+    isApplyingAutoFix = false;
+  });
+}
+
+/**
  * boundaryOffset 바로 앞에 붙어있는 영문 단어가 변환 대상이면 실제로 치환한다.
  * handleLiveTyping(구분 문자를 친 순간)과 scheduleDebouncedConvert(타이핑이 잠시
  * 멈췄을 때) 양쪽에서 공유하는 핵심 로직.
@@ -286,26 +356,20 @@ let isApplyingAutoFix = false;
 function tryConvertWordEndingAt(document, boundaryOffset) {
   const fullText = document.getText();
   const beforeText = fullText.slice(0, boundaryOffset);
-  const wordMatch = beforeText.match(/[a-zA-Z]{3,}$/);
+  const wordMatch = beforeText.match(getLayout().wordTail);
   if (!wordMatch) return false;
 
-  const word = wordMatch[0];
+  // 핵심 판단 기준: 점수가 아니라, "완전히 조합된 한글 음절"을 이루는가.
+  // 이게 실제 한글 입력기가 하는 판단과 같다 - 진짜 영단어는 이 조건을 통과하는
+  // 경우가 거의 없으므로(자모가 어중간하게 남음), 이 조건 하나로 충분한 안전장치가 된다.
+  const resolved = resolveConvertible(wordMatch[0]);
+  if (!resolved) return false;
+  const { word, converted } = resolved;
   const wordStartOffset = boundaryOffset - word.length;
 
   // 코드(식별자) 영역은 건드리지 않고, 주석/문자열/태그 내부 텍스트/안전한 괄호 안에서만 자동 변환
   const zoneType = isInsideZone(document, fullText, wordStartOffset);
   if (!zoneType) return false;
-
-  if (!isConvertibleAlphabet(word)) return false;
-  // 진짜 영단어일 가능성이 높으면 자동변환하지 않는다 (오탐 방지 1차 안전장치)
-  if (isCommonEnglishWord(word)) return false;
-
-  const converted = convertEngToKor(word);
-  if (converted === word) return false; // 변환해도 똑같으면 스킵
-  // 핵심 판단 기준: 점수가 아니라, "완전히 조합된 한글 음절"을 이루는가.
-  // 이게 실제 한글 입력기가 하는 판단과 같다 - 진짜 영단어는 이 조건을 통과하는
-  // 경우가 거의 없으므로(자모가 어중간하게 남음), 이 조건 하나로 충분한 안전장치가 된다.
-  if (!isFullyComposedHangul(converted)) return false;
 
   const editor = vscode.window.visibleTextEditors.find(
     (e) => e.document.uri.toString() === document.uri.toString()
@@ -317,16 +381,7 @@ function tryConvertWordEndingAt(document, boundaryOffset) {
     document.positionAt(boundaryOffset)
   );
 
-  isApplyingAutoFix = true;
-  editor
-    .edit((editBuilder) => {
-      editBuilder.replace(wordRange, converted);
-    })
-    .then(() => {
-      isApplyingAutoFix = false;
-    }, () => {
-      isApplyingAutoFix = false;
-    });
+  applyWordFix(editor, wordRange, word, converted);
   return true;
 }
 
@@ -368,16 +423,7 @@ function tryReverseConvertWordEndingAt(document, boundaryOffset) {
     document.positionAt(boundaryOffset)
   );
 
-  isApplyingAutoFix = true;
-  editor
-    .edit((editBuilder) => {
-      editBuilder.replace(wordRange, restoredTerm);
-    })
-    .then(() => {
-      isApplyingAutoFix = false;
-    }, () => {
-      isApplyingAutoFix = false;
-    });
+  applyWordFix(editor, wordRange, word, restoredTerm);
   return true;
 }
 
@@ -443,7 +489,7 @@ function handleLiveTyping(event) {
   const insertedText = change.text;
 
   // 단어 경계 문자(스페이스/엔터/흔한 구두점)를 막 입력한 경우 -> 그 자리에서 즉시 변환
-  if (/^[ \t\n.,!?;:)\]}"'`]$/.test(insertedText)) {
+  if (getLayout().isBoundary(insertedText)) {
     const boundaryOffset = document.offsetAt(change.range.start);
     const converted = tryConvertWordEndingAt(document, boundaryOffset);
     if (!converted) tryReverseConvertWordEndingAt(document, boundaryOffset);
@@ -501,7 +547,7 @@ function activate(context) {
         for (const selection of editor.selections) {
           const original = editor.document.getText(selection);
           if (!original) continue;
-          const converted = convertEngToKor(original);
+          const converted = getLayout().convertText(original);
           editBuilder.replace(selection, converted);
         }
       });

@@ -2,7 +2,7 @@
 
 | 33 | 10,748 | 155 | 0.5초 |
 |:--:|:--:|:--:|:--:|
-| 2벌식 자판 키 — 전부 실제 입력기와 대조 | 그대로 두는 흔한 영어 단어 | 코드 자리에서 영어로 되돌리는 용어 | 손을 멈추면 바뀌는 시간 |
+| 2벌식 자판 키 — 전부 실제 입력기와 대조 (세벌식 390·최종도 지원) | 그대로 두는 흔한 영어 단어 | 코드 자리에서 영어로 되돌리는 용어 | 손을 멈추면 바뀌는 시간 |
 
 👉 **설치 전에 30초 체험**: [웹 체험판](https://claude.ai/artifact/N4Ge2u3iMbgrvqrZQZYUeg) — 확장과 같은 변환 엔진을 그대로 옮겨, 브라우저에서 바로 쳐 볼 수 있어요.
 
@@ -75,6 +75,7 @@
 ```json
 {
   "ko-typo.autoConvert": true,           // 자동 변환 켜기/끄기
+  "ko-typo.keyboardLayout": "2",         // 평소 쓰는 자판: "2"(2벌식) / "390" / "3final"(세벌식 최종)
   "ko-typo.autoConvertDelayMs": 500,     // 타이핑 멈춘 후 몇 ms 뒤에 변환할지
   "ko-typo.confidenceThreshold": 50,     // 제안 표시 기준 점수
   "ko-typo.showDiagnostics": true,       // 진단(밑줄) 표시 여부
@@ -127,6 +128,8 @@
 ko-typo-converter/
 ├── extension.js                 # VS Code 확장 메인 파일 (자동 변환 로직 포함)
 ├── hangulAssembler.js          # 2벌식 한글 조합 엔진
+├── threeBeolAssembler.js       # 세벌식 390·최종 조합 엔진 (libhangul 자판 자료)
+├── keyboardLayout.js           # 자판 설정에 따라 단어 규칙·변환 함수 고르기
 ├── zoneDetector.js             # 주석/문자열/태그 내부 텍스트/안전한 괄호 "존" 감지 (순수 로직)
 ├── contextDetector.js          # 코드 컨텍스트 감지 (참고용 - 실제 존 감지는 zoneDetector.js)
 ├── confidenceCalculator.js     # 신뢰도 계산 로직
@@ -140,7 +143,10 @@ ko-typo-converter/
 │   ├── extension.save.test.js     # 저장 시점 안전망 테스트
 │   ├── extension.debounce.test.js # 타이핑 멈춤 자동변환 테스트
 │   ├── extension.reverse.test.js  # 한글 → 영어 반대 방향 변환 테스트
-│   └── extension.zones.test.js    # 태그/괄호/언어별 주석 스타일 저장 파이프라인 테스트
+│   ├── extension.zones.test.js    # 태그/괄호/언어별 주석 스타일 저장 파이프라인 테스트
+│   ├── threebeol.test.js          # 세벌식 엔진을 libhangul 결과와 대조
+│   ├── extension.layout.test.js   # 세벌식 타이핑 흐름·자동완성 목록 처리
+│   └── fixtures/threebeol-libhangul.json # libhangul이 낸 기준값
 ├── package.json
 ├── .vscodeignore
 ├── LICENSE.md
@@ -164,16 +170,16 @@ ko-typo-converter/
 npm test
 ```
 
-순수 로직 테스트 49개(태그/괄호/언어별 주석 안전장치, 겹받침, 흔한 영어 단어 보존 포함) + 저장 안전망 테스트 3개 + 디바운스 자동변환 테스트 3개 + 반대 방향(한글→영어) 변환 테스트 6개 + 태그·괄호·언어별 주석이 실제 저장 파이프라인까지 이어지는지 확인하는 테스트 12개, 총 73개가 함께 실행됩니다.
+순수 로직 테스트 49개(태그/괄호/언어별 주석 안전장치, 겹받침, 흔한 영어 단어 보존 포함) + 저장 안전망 테스트 3개 + 디바운스 자동변환 테스트 3개 + 반대 방향(한글→영어) 변환 테스트 6개 + 태그·괄호·언어별 주석이 실제 저장 파이프라인까지 이어지는지 확인하는 테스트 12개 + 세벌식 엔진·자판 규칙 9개 + 세벌식 타이핑 흐름·자동완성 목록 처리 6개, 총 88개가 함께 실행됩니다.
 
 ---
 
 ## 🐛 알려진 제한사항
 
-- ❌ 자동 완성(IntelliSense) 목록이 떠 있는 동안에는 작동하지 않을 수 있습니다.
+- ✅ 자동 완성(IntelliSense) 목록이 떠 있으면 목록을 먼저 닫고 바꿉니다 (v0.1.0).
 - ❌ 매우 큰 파일(10MB+)에서는 느릴 수 있습니다.
 - ❌ 단어를 치다가 중간에 잠깐 멈추는 습관이 있으면, 아직 다 안 친 단어가 먼저 변환될 수 있습니다. 이럴 땐 설정에서 `ko-typo.autoConvertDelayMs` 값을 늘려주세요.
-- ❌ 괄호 인식은 소괄호 `()`만 지원합니다. 중괄호 `{}`와 대괄호 `[]`는 블록문/객체 리터럴/배열 등 실제 코드와 안전하게 구분할 방법이 마땅치 않아 이번 수정에서도 제외했습니다.
+- ℹ️ 괄호 안 글자는 소괄호 `()`만 바꿉니다. 중괄호 `{}`와 대괄호 `[]` 안은 대부분 실제 코드(블록문·객체·배열)라서, 멀쩡한 코드를 망가뜨리지 않으려고 일부러 바꾸지 않습니다. 그 안의 따옴표 문자열과 주석은 바뀝니다.
 - ✅ 겹받침(값·닭·없습니다·않아요)을 실제 입력기처럼 조합합니다 (v0.0.7).
 - ❌ 태그 내부 텍스트 인식은 HTML/XML/Vue/Svelte/Markdown/JSX/TSX 파일에서만 켜집니다. 일반 `.js`/`.ts` 파일에서 `<`, `>`는 대부분 비교 연산자라 오탐 위험이 커서 켜지 않습니다.
 - ❌ VS Code 확장이므로 VS Code 밖(다른 에디터/IDE, 터미널, DB 클라이언트 등)에서 직접 파일을 편집할 때는 동작하지 않습니다. Python/SQL 등도 그 파일을 VS Code로 열었을 때만 언어별 주석 인식이 적용됩니다.
@@ -197,14 +203,15 @@ MIT License - 자유롭게 사용, 수정, 배포 가능
 - **작가**: 장주영 (Jang Juyoung)
 - **전공**: 국악(사물놀이/풍물) → 개발자 전환
 
-**Version**: 0.0.8 (베타)
+**Version**: 0.1.0 (베타)
 
 ---
 
 ## 🚀 향후 계획
 
 - [x] 겹받침 조합 지원 (v0.0.7)
-- [ ] 3벌식 한글 지원
+- [x] 세벌식 390·최종 지원 (v0.1.0)
+- [ ] JetBrains(파이참 등) 확장
 - [ ] 더 많은 도메인 단어 추가
 - [ ] 학습 기반 신뢰도 개선 (ML)
 - [ ] 다국어 지원
@@ -212,5 +219,7 @@ MIT License - 자유롭게 사용, 수정, 배포 가능
 ---
 
 ### 사용한 자료
+
+- 세벌식 390·최종 자판 배열과 겹낱자 조합 규칙: [libhangul](https://github.com/libhangul/libhangul) (LGPL-2.1)의 `hangulkeyboard.h`, `hangul-combination-default.xml`
 
 - 그대로 두는 흔한 영어 단어 목록: [SCOWL](http://wordlist.aspell.net/) (npm `wordlist-english` 1.2.1의 10·20 단계), Copyright 2000-2016 by Kevin Atkinson — 자세한 허가 문구는 `englishFrequent.js` 첫머리에 있습니다.

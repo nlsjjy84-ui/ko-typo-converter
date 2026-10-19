@@ -41,13 +41,16 @@ function isHangulOnly(str) {
  * 영어 후보 단어 목록을 받아서, "그 단어를 2벌식 한글 IME 상태로 쳤을 때 나오는 한글" →
  * "원래 영어 단어"의 역방향 조회 표를 만든다.
  * @param {Iterable<string>} terms - 후보 영어 단어들 (프로그래밍 키워드, 문서 내 식별자 등)
+ * @param {(word: string) => (string|null)} [convert] - 영문 키 → 한글 변환 함수 (기본 2벌식)
  * @returns {Map<string, string>} - 조합된 한글 문자열 -> 원래 영어 단어
  */
-function buildReverseLookupTable(terms) {
+function buildReverseLookupTable(terms, convert = convertEngToKor) {
   const table = new Map();
   for (const term of terms) {
     if (!term || term.length < 2) continue;
-    const garbled = convertEngToKor(term);
+    // v0.1.0: 자판(2벌식·3벌식)에 맞는 변환 함수를 받는다. 3벌식에서 자판에 없는 글자가
+    // 섞인 용어는 null이 돌아오므로 건너뛴다.
+    const garbled = convert(term);
     // 순변환 결과가 "완전히 조합된 한글 음절"이 아니면(자모가 어중간하게 남으면),
     // 실제로 타이핑했을 때도 그런 애매한 형태로 남는다는 뜻이라 조회 대상에서 제외한다
     // (forward 방향과 동일한 기준 - hangulAssembler.js의 isFullyComposedHangul 참고).

@@ -2,7 +2,7 @@
   "name": "ko-typo-converter",
   "displayName": "한영타자 변환기 (Ko-Typo Converter)",
   "description": "영문 타이핑 실수(한글 오타)를 자동으로 감지하고 변환해주는 VS Code 확장",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "publisher": "nlsjjy84-ui",
   "author": {
     "name": "장주영",
@@ -54,6 +54,21 @@
           "default": true,
           "description": "자동 변환 활성화 여부 (흔한 영단어 목록에 없고 신뢰도 50 이상이면 자동)"
         },
+        "ko-typo.keyboardLayout": {
+          "type": "string",
+          "default": "2",
+          "enum": [
+            "2",
+            "390",
+            "3final"
+          ],
+          "enumDescriptions": [
+            "2벌식 (표준 자판)",
+            "세벌식 390",
+            "세벌식 최종"
+          ],
+          "description": "평소 쓰는 한글 자판. 영문 상태로 잘못 친 글자를 이 자판 기준으로 한글로 맞춥니다. 세벌식은 숫자·일부 기호도 자모 키로 봅니다."
+        },
         "ko-typo.confidenceThreshold": {
           "type": "number",
           "default": 50,
@@ -98,7 +113,7 @@
     ]
   },
   "scripts": {
-    "test": "node test.js && node -r ./test/setup.js test/extension.save.test.js && node -r ./test/setup.js test/extension.debounce.test.js && node -r ./test/setup.js test/extension.reverse.test.js && node -r ./test/setup.js test/extension.zones.test.js",
+    "test": "node test.js && node -r ./test/setup.js test/extension.save.test.js && node -r ./test/setup.js test/extension.debounce.test.js && node -r ./test/setup.js test/extension.reverse.test.js && node -r ./test/setup.js test/extension.zones.test.js && node test/threebeol.test.js && node -r ./test/setup.js test/extension.layout.test.js",
     "package": "vsce package"
   },
   "devDependencies": {

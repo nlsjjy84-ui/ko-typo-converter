@@ -47,6 +47,9 @@ module.exports = {
   },
   commands: {
     registerCommand: () => ({ dispose(){} }),
+    // v0.1.0: 자동완성 목록 닫기(hideSuggestWidget) 호출을 테스트에서 확인하기 위해 기록한다
+    executed: [],
+    executeCommand(id) { this.executed.push(id); return Promise.resolve(); },
   },
   window: {
     activeTextEditor: undefined,
