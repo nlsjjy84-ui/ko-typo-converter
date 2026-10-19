@@ -132,6 +132,39 @@ async function main() {
     assert.strictEqual(doc.getText(), '// hello! ');
   });
 
+  await test('v0.1.1: 들여쓰기 있는 줄에서 엔터("\\n    ")로 단어를 끝내도 바로 바뀐다', async () => {
+    vscode.__setConfig('autoConvertDelayMs', 400);
+    const doc = makeDoc('    // ', '/tmp/s4.js');
+    const editor = makeEditor(doc);
+    vscode.window.activeTextEditor = editor;
+    vscode.window.visibleTextEditors = [editor];
+    typeChars(onChange, doc, editor, 'dkssud'.split(''));
+    const at = doc.getText().length;
+    doc._append('\n    ');
+    editor._setCursor(doc.getText().length);
+    onChange({ document: doc, contentChanges: [{ range: { start: at, end: at }, text: '\n    ' }] });
+    await sleep(20); // 멈춤 대기(400ms)보다 훨씬 전에 바뀌어 있어야 한다
+    assert.strictEqual(doc.getText(), '    // 안녕\n    ');
+    await sleep(420);
+    vscode.__setConfig('autoConvertDelayMs', 30);
+  });
+
+  await test('v0.1.1: 멈춤으로 바뀐 단어를 되돌리기(Ctrl+Z)하면 다시 바꾸지 않는다', async () => {
+    const doc = makeDoc('// ', '/tmp/s5.js');
+    const editor = makeEditor(doc);
+    vscode.window.activeTextEditor = editor;
+    vscode.window.visibleTextEditors = [editor];
+    typeChars(onChange, doc, editor, 'dkssud'.split(''));
+    await sleep(70);
+    assert.strictEqual(doc.getText(), '// 안녕');
+    // 되돌리기: "안녕"이 다시 "dkssud"로, 커서는 단어 바로 뒤
+    doc._replace({ start: 3, end: 5 }, 'dkssud');
+    editor._setCursor(doc.getText().length);
+    onChange({ document: doc, reason: vscode.TextDocumentChangeReason.Undo, contentChanges: [{ range: { start: 3, end: 5 }, text: 'dkssud' }] });
+    await sleep(70);
+    assert.strictEqual(doc.getText(), '// dkssud');
+  });
+
   vscode.__resetConfig();
   console.log(`\n${passed}개 통과, ${failed}개 실패\n`);
   if (failed) process.exit(1);

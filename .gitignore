@@ -1,3 +1,6 @@
 node_modules/
 *.vsix
 .vscode-test/
+jetbrains/build/
+jetbrains/.gradle/
+jetbrains/.intellijPlatform/

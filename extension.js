@@ -99,7 +99,7 @@ function isReverseConvertEnabled() {
 
 /** 설정의 confidenceThreshold(0~100)를 내부에서 쓰는 0~1 스케일로 변환 */
 function getConfidenceThreshold() {
-  const raw = getConfig().get('confidenceThreshold', 70);
+  const raw = getConfig().get('confidenceThreshold', 50);
   const clamped = Math.max(0, Math.min(100, Number(raw) || 0));
   return clamped / 100;
 }
@@ -160,11 +160,24 @@ function findCandidates(document) {
         original: word,
         converted,
         confidence,
+        startOffset: absoluteStart,
+        endOffset: absoluteStart + word.length,
       });
     }
   }
 
-  return candidates;
+  // v0.1.1 버그 수정: 영역이 겹치면(예: 문자열 "(dkssud)"는 문자열이면서 안전한 괄호이기도 하다)
+  // 같은 단어가 두 번 잡혀, 저장할 때 겹치는 편집 두 개를 VS Code에 넘기게 된다. VS Code는 겹치는
+  // 편집을 거절하므로 그 저장의 변환이 통째로 빠졌다. 앞에서부터 겹치지 않는 것만 남긴다.
+  candidates.sort((a, b) => a.startOffset - b.startOffset);
+  const kept = [];
+  let lastEnd = -1;
+  for (const c of candidates) {
+    if (c.startOffset < lastEnd) continue;
+    kept.push(c);
+    lastEnd = c.endOffset;
+  }
+  return kept;
 }
 
 /**
@@ -483,6 +496,17 @@ function handleLiveTyping(event) {
   // (수동 커맨드/코드 액션 제안은 이 설정과 무관하게 계속 동작한다)
   if (!isAutoConvertEnabled()) return;
   if (isExcludedDocument(event.document)) return;
+
+  // v0.1.1: 되돌리기(Ctrl+Z)·다시 실행으로 돌아온 글자는 다시 바꾸지 않는다. 멈춤 변환으로 바뀐 단어를
+  // 되돌리면 커서가 그 단어 바로 뒤에 있어서, 0.5초 뒤 또 바뀌어 되돌릴 수가 없었다.
+  const reasons = vscode.TextDocumentChangeReason;
+  if (reasons && (event.reason === reasons.Undo || event.reason === reasons.Redo)) {
+    const key = event.document.uri.toString();
+    const pending = pendingConvertTimers.get(key);
+    if (pending) clearTimeout(pending);
+    pendingConvertTimers.delete(key);
+    return;
+  }
 
   const document = event.document;
   const change = event.contentChanges[event.contentChanges.length - 1];

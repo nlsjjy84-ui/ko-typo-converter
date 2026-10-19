@@ -77,6 +77,13 @@ async function main() {
     assert.strictEqual(edits.length, 0);
   });
 
+  await test('v0.1.1: 문자열 안 괄호 "(dkssud)"처럼 영역이 겹쳐도 편집은 하나만 넘긴다 (겹치는 편집은 VS Code가 거절함)', async () => {
+    const text = 'const a = "(dkssud)";';
+    const edits = await getSaveEdits(text);
+    assert.strictEqual(edits.length, 1);
+    assert.strictEqual(applyEdits(text, edits), 'const a = "(안녕)";');
+  });
+
   console.log(`\n${passed}개 통과, ${failed}개 실패\n`);
   if (failed > 0) process.exitCode = 1;
 }

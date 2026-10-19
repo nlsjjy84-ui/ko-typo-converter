@@ -1,0 +1,60 @@
+<idea-plugin>
+    <id>io.github.nlsjjy84ui.ko-typo-converter</id>
+    <name>Ko Typo Converter - Korean Layout Typo Fixer</name>
+    <vendor url="https://github.com/nlsjjy84-ui/ko-typo-converter">JANG JUYOUNG</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <description><![CDATA[
+<p>Fixes Korean that was typed while the keyboard was still in English mode
+(for example <code>dkssud</code> becomes <code>안녕</code>), right inside comments, strings and markup text.</p>
+<ul>
+  <li>Converts when you press Space or Enter, when you pause typing (0.5 s), and once more on save.</li>
+  <li>Only touches comments, strings, text between tags and plain parentheses. Code is never changed.</li>
+  <li>Words that only look like Korean are left alone: 10,748 common English words (air, city, test, ...) are never converted.</li>
+  <li>Reverse direction: a keyword typed in Korean mode in code (<code>채ㅜ내ㅣㄷ</code>) goes back to <code>console</code>,
+      but only when it matches a known term or a name already used in the file.</li>
+  <li>Supports 2-beolsik (standard) and 3-beolsik 390 / final layouts.</li>
+  <li>Close the completion popup first, then convert. Ctrl+Z undoes a conversion and it will not come back.</li>
+  <li>Manual: select text and press Ctrl+Alt+Shift+K, or right-click &gt; 한영 타자 변환기.</li>
+</ul>
+<p>Same engine as the VS Code extension of the same name; the Java port is checked against the JavaScript
+engine case by case. Settings: Settings &gt; Tools &gt; 한영 타자 변환기.</p>
+<hr/>
+<p>한/영 전환을 깜빡하고 영문 상태로 친 한글(<code>dkssud</code>)을 주석·문자열·태그 안에서 바로 한글(<code>안녕</code>)로 고쳐 줍니다.
+스페이스·엔터를 칠 때, 잠깐 멈췄을 때, 저장할 때 바뀌고, 코드 자리는 건드리지 않습니다.
+흔한 영어 단어 10,748개는 그대로 두고, 2벌식과 세벌식 390·최종을 지원합니다.</p>
+]]></description>
+
+    <change-notes><![CDATA[
+<p>0.1.0 — First JetBrains release. Same rules as the VS Code extension 0.1.1:
+2-beolsik and 3-beolsik (390, final), reverse conversion in code, conversion on Space/Enter/pause/save,
+selection conversion (Ctrl+Alt+Shift+K) and a "fix whole document" action.</p>
+]]></change-notes>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <editorFactoryDocumentListener implementation="io.github.nlsjjy84ui.kotypo.ide.TypingListener"/>
+        <applicationConfigurable parentId="tools" id="io.github.nlsjjy84ui.kotypo.settings"
+                                 instance="io.github.nlsjjy84ui.kotypo.ide.KoTypoConfigurable"
+                                 displayName="한영 타자 변환기"/>
+        <notificationGroup id="Ko Typo Converter" displayType="BALLOON"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="io.github.nlsjjy84ui.kotypo.ide.SaveListener"
+                  topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
+    </applicationListeners>
+
+    <actions>
+        <group id="KoTypo.Menu" text="한영 타자 변환기" popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <action id="KoTypo.ConvertSelection" class="io.github.nlsjjy84ui.kotypo.ide.ConvertSelectionAction"
+                    text="선택 영역을 한글로 변환" description="선택한 영문을 설정한 자판 기준으로 한글로 바꿉니다">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift K"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta alt shift K" replace-all="true"/>
+            </action>
+            <action id="KoTypo.FixDocument" class="io.github.nlsjjy84ui.kotypo.ide.FixDocumentAction"
+                    text="문서 전체 한영 오타 고치기" description="저장할 때와 같은 기준으로 지금 문서의 한영 오타를 고칩니다"/>
+        </group>
+    </actions>
+</idea-plugin>

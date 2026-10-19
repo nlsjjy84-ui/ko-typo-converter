@@ -10,6 +10,9 @@ const { convertThreeBeol, isHangulKey, LAYOUTS } = require('./threeBeolAssembler
 
 const DEFAULT_BOUNDARY = /^[ \t\n.,!?;:)\]}"'`]$/;
 const SPACE_BOUNDARY = /^[ \t\n]$/;
+// v0.1.1: 엔터를 치면 편집기가 줄바꿈과 들여쓰기를 한 번에 넣는다("\n    "). 예전에는 글자 하나만
+// 단어 끝으로 봐서, 들여쓰기가 있는 줄에서 엔터로 끝낸 단어는 저장할 때까지 바뀌지 않았다.
+const NEWLINE_WITH_INDENT = /^\r?\n[ \t]*$/;
 
 const escapeForClass = (ch) => ch.replace(/[\\\]\[^-]/g, (m) => '\\' + m);
 
@@ -17,7 +20,7 @@ const TWO_BEOL = {
   id: '2',
   wordTail: /[a-zA-Z]{3,}$/,
   wordGlobal: /[a-zA-Z]{3,}/g,
-  isBoundary: (text) => DEFAULT_BOUNDARY.test(text),
+  isBoundary: (text) => NEWLINE_WITH_INDENT.test(text) || DEFAULT_BOUNDARY.test(text),
   isConvertible: (word) => isConvertibleAlphabet(word),
   convert: (word) => convertEngToKor(word),
   convertText: (text) => convertEngToKor(text),
@@ -33,7 +36,7 @@ function threeBeol(id) {
     wordTail: new RegExp(cls + '{3,}$'),
     wordGlobal: new RegExp(cls + '{3,}', 'g'),
     // 이 자판에서 자모가 아닌 기호만 단어 끝으로 본다 (공백·줄바꿈은 항상 단어 끝)
-    isBoundary: (text) => SPACE_BOUNDARY.test(text) || (DEFAULT_BOUNDARY.test(text) && !isHangulKey(id, text)),
+    isBoundary: (text) => NEWLINE_WITH_INDENT.test(text) || SPACE_BOUNDARY.test(text) || (DEFAULT_BOUNDARY.test(text) && !isHangulKey(id, text)),
     // 영문자가 하나도 없으면(숫자·기호만) 한글을 치려던 것으로 보지 않는다
     isConvertible: (word) => /[a-zA-Z]/.test(word) && [...word].every((c) => isHangulKey(id, c)),
     convert: (word) => convertThreeBeol(word, id),

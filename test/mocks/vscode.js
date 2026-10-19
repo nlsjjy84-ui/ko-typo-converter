@@ -40,6 +40,7 @@ const workspace = {
 module.exports = {
   Range, Position, Diagnostic, CodeAction, WorkspaceEdit, TextEdit,
   DiagnosticSeverity: { Warning: 1, Hint: 2 },
+  TextDocumentChangeReason: { Undo: 1, Redo: 2 },
   CodeActionKind: { QuickFix: 'quickfix' },
   languages: {
     createDiagnosticCollection: () => ({ set(){}, delete(){}, clear(){}, dispose(){} }),
